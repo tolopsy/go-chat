@@ -6,14 +6,14 @@ import (
 
 type client struct {
 	socket *websocket.Conn
-	send chan []byte
-	room *room
+	send   chan []byte
+	room   *room
 }
 
 func (c *client) read() {
 	defer c.socket.Close()
 	for {
-		_, msg, err := c.socket.ReadMessage
+		_, msg, err := c.socket.ReadMessage()
 
 		if err != nil {
 			return
@@ -24,7 +24,7 @@ func (c *client) read() {
 
 func (c *client) write() {
 	defer c.socket.Close()
-	for msg := c.send {
+	for msg := range c.send {
 		err := c.socket.WriteMessage(websocket.TextMessage, msg)
 
 		if err != nil {
