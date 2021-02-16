@@ -8,36 +8,39 @@ import (
 )
 
 type room struct {
-	forward chan []byte
-	join    chan *client
-	leave   chan *client
-	clients map[*client]bool
+	addMember    chan *client
+	removeMember chan *client
+	roomMembers  map[*client]bool
+	msgForwarder chan []byte
 }
 
-func newRoom() *room {
-	return &room{
-		forward: make(chan []byte),
-		join:    make(chan *client),
-		leave:   make(chan *client),
-		clients: make(map[*client]bool),
-	}
-}
-
+// handles the main activities in the room (join, leave and forward messages)
 func (r *room) run() {
 	for {
 		select {
-		case client := <-r.join:
-			r.clients[client] = true
+		case newMember := <-r.addMember:
+			r.roomMembers[newMember] = true
 
-		case client := <-r.leave:
-			delete(r.clients, client)
-			close(client.send)
+		case exMember := <-r.removeMember:
+			delete(r.roomMembers, exMember)
+			close(exMember.sender)
 
-		case msg := <-r.forward:
-			for client := range r.clients {
-				client.send <- msg
+		case newMessage := <-r.msgForwarder:
+			for mem := range r.roomMembers {
+				mem.sender <- newMessage
 			}
 		}
+
+	}
+}
+
+// createNewRoom returns a new room object
+func createNewRoom() *room {
+	return &room{
+		addMember:    make(chan *client),
+		removeMember: make(chan *client),
+		roomMembers:  make(map[*client]bool),
+		msgForwarder: make(chan []byte),
 	}
 }
 
@@ -46,24 +49,28 @@ const (
 	messageBufferSize = 512
 )
 
-var upgrader = &websocket.Upgrader{ReadBufferSize: socketBufferSize, WriteBufferSize: socketBufferSize}
+// upgrader will upgrade http connections to websocket connection
+var upgrader = &websocket.Upgrader{
+	ReadBufferSize:  socketBufferSize,
+	WriteBufferSize: socketBufferSize,
+}
 
 func (r *room) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	socket, err := upgrader.Upgrade(w, req, nil)
+	socket, err := upgrader.Upgrade(w, req, nil) // upgrades http connection to websocket connection
 	if err != nil {
-		log.Fatal("ServeHTTP:", err)
+		log.Fatal("ServeHTTP: ", err)
 		return
 	}
 
-	clientObj := &client{
+	newClient := &client{
 		socket: socket,
-		send:   make(chan []byte, messageBufferSize),
+		sender: make(chan []byte, messageBufferSize),
 		room:   r,
 	}
 
-	r.join <- clientObj
+	r.addMember <- newClient
 
-	defer func() { r.leave <- clientObj }()
-	go clientObj.write()
-	clientObj.read()
+	defer func() { r.removeMember <- newClient }()
+	go newClient.write()
+	newClient.read()
 }

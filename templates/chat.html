@@ -4,56 +4,82 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp Go</title>
-    
+    <title>Chat Room</title>
     <style>
-        input { display: block; }
-        ul { list-style: none; }
+        input, textarea {
+            display: block;
+            margin-bottom: 5px;
+            outline: none;
+        }
+
+        ul {
+            list-style: none;
+        }
+
+        ul > li {
+            margin: 5px 0;
+        }
     </style>
 </head>
 <body>
-    <h1>Let's Chat</h1>
+    <section class="chat">
+        <h4>Group chat</h4>
+        <div id="messages">
+            <ul id="messageList">
+                
+            </ul>
+        </div>
 
-    <ul id="messages"></ul>
-    <form id="chatbox">
-        <textarea></textarea>
-        <input type="submit" value="Send" />
-    </form>
+        <form id="messageBox">
+            <textArea id="msgWriter"></textArea>
+            <input type="submit" value="Send Message">
+        </form>
+    </section>
 
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+    <!--Script handles websocket connection and message rendering-->
     <script>
-        $(function() {
-            var socket = null;
-            var msgBox =  $("#chatbox textarea");
-            var messages = $("#messages");
+        const selectElement = (e) => document.querySelector(e);
 
-            $("#chatbox").submit(function(){
-                if (!msgBox.val()) return false;
-                if(!socket) {
-                    alert("Error: There is no socket connection");
-                    return false;
-                }
+        var messageList = selectElement("#messageList");
+        var msgWriter = selectElement("#msgWriter");
+        var socket = null
 
-                socket.send(msgBox.val());
-                msgBox.val("");
-                return false;
-            });
+        // showNewMessage displays new message in messageList
+        const showNewMessage = (val) => {
+            var li = document.createElement("li");
+            li.appendChild(document.createTextNode(val));
+            messageList.appendChild(li);
+        }
 
-            if (!window["WebSocket"]) {
-                alert("Your browser does not support web sockets. \nChange browser");
-            } else {
-                socket = new WebSocket("ws://{{.Host}}/room")
-                socket.onclose = function() {
-                    alert(
-                        "Web socket connection has been closed"
-                    );
-                }
-
-                socket.onmessage = function(e) {
-                    messages.append($("<li>").text(e.data));
-                }
+        // typed message is sent by a socket (if available) to the server
+        function sendMessage(event) {
+            if (!msgWriter.value) return false;
+            if (!socket) {
+                alert("No socket connection. Reload or Change your browser");
+                return false
             }
-        });
+
+            
+            socket.send(msgWriter.value);
+            msgWriter.value = "";
+            event.preventDefault();
+            return false
+        }
+
+        if (!window["WebSocket"]) {
+            alert("Your browser does not support web sockets. Change browser");
+        } else {
+            socket = new WebSocket("ws://{{.Host}}/room");
+            socket.onclose = function(){
+                alert("Web socket connection has been closed");
+            }
+
+            // calls showNewMessage if socket receives message
+            socket.onmessage = function(msg) {
+                showNewMessage(msg.data);
+            }
+        }
+        selectElement("#messageBox").addEventListener("submit", sendMessage, false);
     </script>
 </body>
 </html>
