@@ -1,6 +1,7 @@
 package main
 
 import (
+	"go-chat/trace"
 	"log"
 	"net/http"
 
@@ -12,6 +13,7 @@ type room struct {
 	removeMember chan *client
 	roomMembers  map[*client]bool
 	msgForwarder chan []byte
+	tracer       trace.Tracer
 }
 
 // handles the main activities in the room (join, leave and forward messages)
@@ -20,14 +22,17 @@ func (r *room) run() {
 		select {
 		case newMember := <-r.addMember:
 			r.roomMembers[newMember] = true
+			r.tracer.Trace("New Client Joined")
 
 		case exMember := <-r.removeMember:
 			delete(r.roomMembers, exMember)
 			close(exMember.sender)
+			r.tracer.Trace("Client left")
 
 		case newMessage := <-r.msgForwarder:
 			for mem := range r.roomMembers {
 				mem.sender <- newMessage
+				r.tracer.Trace("-- sent to client")
 			}
 		}
 
@@ -41,6 +46,7 @@ func createNewRoom() *room {
 		removeMember: make(chan *client),
 		roomMembers:  make(map[*client]bool),
 		msgForwarder: make(chan []byte),
+		tracer:       trace.Off(),
 	}
 }
 

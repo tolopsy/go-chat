@@ -2,7 +2,6 @@ package trace
 
 import (
 	"bytes"
-	"io"
 	"testing"
 )
 
@@ -20,6 +19,7 @@ func TestNew(t *testing.T) {
 	}
 }
 
-func New(w io.Writer) Tracer {
-	return &tracer{out: w}
+func TestOff(t *testing.T) {
+	var silentTracer Tracer = Off()
+	silentTracer.Trace("Something")
 }
