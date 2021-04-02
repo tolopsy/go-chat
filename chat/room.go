@@ -1,7 +1,7 @@
 package main
 
 import (
-	"go-chat/trace"
+	"go-projects/go-chat/trace"
 	"log"
 	"net/http"
 

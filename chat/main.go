@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"path/filepath"
@@ -32,6 +33,7 @@ func main() {
 
 	http.Handle("/", &templateHandler{filename: "chat.html"})
 	http.Handle("/room", r)
+	fmt.Println("Running now")
 
 	go r.run()
 
