@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"sync"
 	"text/template"
+
+	"github.com/stretchr/gomniauth"
+	"github.com/stretchr/gomniauth/providers/github"
 )
 
 type templateHandler struct {
@@ -28,6 +31,18 @@ func main() {
 	addr := flag.String("addr", ":8000", "The port to listen from")
 	flag.Parse()
 
+	reader := JsonReader{}
+	err := reader.reads()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	gomniauth.SetSecurityKey(reader.ClientId)
+	gomniauth.WithProviders(
+		github.New(reader.ClientId,
+			reader.ClientSecret,
+			fmt.Sprintf("http://localhost%s/auth/callback/github", *addr)),
+	)
 	r := createNewRoom()
 	// r.tracer = trace.New(os.Stdout)
 

@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
+
+	"github.com/stretchr/gomniauth"
+	"github.com/stretchr/objx"
 )
 
 // authHandler checks if a user is authenticated or not
@@ -43,9 +45,58 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	provider := urlSegments[3]
 	switch action {
 	case "login":
-		log.Println("Login with", provider)
+		provider, err := gomniauth.Provider(provider)
+
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Error when trying to get provider %s: %s", provider, err), http.StatusBadRequest)
+			return
+		}
+
+		loginURL, err := provider.GetBeginAuthURL(nil, nil)
+
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Error when trying to GetBeginAuthURL for %s : %s", loginURL, err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Location", loginURL)
+		w.WriteHeader(http.StatusTemporaryRedirect)
+
+	case "callback":
+		provider, err := gomniauth.Provider(provider)
+
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Error when trying to get provider: %s", err), http.StatusBadRequest)
+			return
+		}
+
+		credentials, err := provider.CompleteAuth(objx.MustFromURLQuery(r.URL.RawQuery))
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Error when trying to complete authentication for %s: %s", provider, err), http.StatusInternalServerError)
+			return
+		}
+
+		user, err := provider.GetUser(credentials)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Error when trying to get user from %s: %s", provider, err), http.StatusInternalServerError)
+			return
+		}
+
+		authCookie := objx.New(map[string]interface{}{
+			"name": user.Name(),
+		}).MustBase64()
+
+		http.SetCookie(w, &http.Cookie{
+			Name:  "auth",
+			Value: authCookie,
+			Path:  "/",
+		})
+
+		w.Header().Set("Location", "/chat")
+		w.WriteHeader(http.StatusTemporaryRedirect)
+
 	default:
 		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "Auth action %s is not supporterd", action)
+		fmt.Fprintf(w, "Auth action %s is not supported", action)
 	}
 }
