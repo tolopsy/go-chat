@@ -6,13 +6,14 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
+	"github.com/stretchr/objx"
 )
 
 type room struct {
 	addMember    chan *client
 	removeMember chan *client
 	roomMembers  map[*client]bool
-	msgForwarder chan []byte
+	msgForwarder chan *message
 	tracer       trace.Tracer
 }
 
@@ -32,7 +33,7 @@ func (r *room) run() {
 		case newMessage := <-r.msgForwarder:
 			for mem := range r.roomMembers {
 				mem.sender <- newMessage
-				r.tracer.Trace("-- sent to client")
+				r.tracer.Trace("Message sent: ", newMessage.Message)
 			}
 		}
 
@@ -45,7 +46,7 @@ func createNewRoom() *room {
 		addMember:    make(chan *client),
 		removeMember: make(chan *client),
 		roomMembers:  make(map[*client]bool),
-		msgForwarder: make(chan []byte),
+		msgForwarder: make(chan *message),
 		tracer:       trace.Off(),
 	}
 }
@@ -68,10 +69,17 @@ func (r *room) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	authCookie, err := req.Cookie("auth")
+	if err != nil {
+		log.Fatal("Failed to get auth cookie: ", err)
+		return
+	}
+
 	newClient := &client{
-		socket: socket,
-		sender: make(chan []byte, messageBufferSize),
-		room:   r,
+		socket:   socket,
+		sender:   make(chan *message, messageBufferSize),
+		room:     r,
+		userData: objx.MustFromBase64(authCookie.Value),
 	}
 
 	r.addMember <- newClient

@@ -48,7 +48,7 @@
         // showNewMessage displays new message in messageList
         const showNewMessage = (val) => {
             var li = document.createElement("li");
-            li.appendChild(document.createTextNode(val));
+            li.appendChild(document.createTextNode(val.Name + ": " + val.Message));
             messageList.appendChild(li);
         }
 
@@ -61,7 +61,7 @@
             }
 
             
-            socket.send(msgWriter.value);
+            socket.send(JSON.stringify({"Message": msgWriter.value}));
             msgWriter.value = "";
             event.preventDefault();
             return false
@@ -77,7 +77,7 @@
 
             // calls showNewMessage if socket receives message
             socket.onmessage = function(msg) {
-                showNewMessage(msg.data);
+                showNewMessage(JSON.parse(msg.data));
             }
         }
         selectElement("#messageBox").addEventListener("submit", sendMessage, false);
